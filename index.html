@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Repartos - Tiempo Real</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .connection-status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .setup-section {
+            background: #f0f4ff;
+            border: 2px dashed #667eea;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .setup-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .setup-section ol {
+            text-align: left;
+            max-width: 600px;
+            margin: 0 auto 20px;
+            line-height: 1.8;
+        }
+
+        .setup-section code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .config-form {
+            margin-top: 20px;
+        }
+
+        .config-form input {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px;
+            margin: 10px auto;
+            display: block;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+        }
+
+        button {
+            flex: 1;
+            min-width: 150px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(17, 153, 142, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(235, 51, 73, 0.3);
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            max-width: 200px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-top: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 14px;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+            transition: background 0.3s ease;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+            font-size: 18px;
+        }
+
+        .sync-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 Gestión de Repartos <span id="syncIndicator" class="sync-indicator hidden"></span></h1>
+        
+        <div id="connectionStatus" class="connection-status disconnected">
+            Sin conexión a la base de datos
+        </div>
+
+        <div id="setupSection" class="setup-section">
+            <h2>🔧 Configuración de Firebase</h2>
+            <p>Para sincronizar los repartos entre dispositivos, necesitas configurar Firebase:</p>
+            <ol>
+                <li>Ve a <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
+                <li>Crea un nuevo proyecto (es gratis)</li>
+                <li>En la configuración del proyecto, ve a "Configuración del proyecto"</li>
+                <li>Desplázate hasta "Tus apps" y crea una nueva app web</li>
+                <li>Copia la configuración de Firebase</li>
+                <li>En el menú lateral, ve a "Realtime Database" y créala en modo de prueba</li>
+                <li>Pega la configuración aquí abajo:</li>
+            </ol>
+            
+            <div class="config-form">
+                <input type="text" id="apiKey" placeholder="API Key" />
+                <input type="text" id="authDomain" placeholder="Auth Domain (ejemplo.firebaseapp.com)" />
+                <input type="text" id="databaseURL" placeholder="Database URL (https://ejemplo.firebaseio.com)" />
+                <input type="text" id="projectId" placeholder="Project ID" />
+                <button class="btn-connect" onclick="conectarFirebase()">Conectar</button>
+            </div>
+        </div>
+
+        <div id="appContent" class="hidden">
+            <div class="form-section">
+                <form id="repartoForm">
+                    <div class="form-group">
+                        <label for="destino">Destino</label>
+                        <input type="text" id="destino" required placeholder="Ej: Cliente ABC">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="direccion">Dirección</label>
+                        <input type="text" id="direccion" required placeholder="Ej: Av. Principal 123">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="horarios">Horarios de Entrega</label>
+                        <input type="text" id="horarios" required placeholder="Ej: 9:00 - 18:00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bultos">Cantidad de Bultos</label>
+                        <input type="number" id="bultos" required min="1" placeholder="Ej: 5">
+                    </div>
+                    
+                    <div class="button-group">
+                        <button type="submit" class="btn-primary">Agregar Reparto</button>
+                        <button type="button" class="btn-success" onclick="exportarExcel()">📊 Exportar Excel</button>
+                        <button type="button" class="btn-danger" onclick="vaciarRepartos()">🗑️ Vaciar Todo</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="table-container">
+                <table id="repartosTable">
+                    <thead>
+                        <tr>
+                            <th>N°</th>
+                            <th>Destino</th>
+                            <th>Dirección</th>
+                            <th>Horarios de Entrega</th>
+                            <th>Cantidad de Bultos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="repartosBody">
+                        <tr>
+                            <td colspan="5" class="empty-state">No hay repartos cargados aún</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let database;
+        let repartosRef;
+        let numeroReparto = 1;
+        let repartos = [];
+        let isConnected = false;
+
+        // Guardar configuración en localStorage
+        function guardarConfiguracion(config) {
+            localStorage.setItem('firebaseConfig', JSON.stringify(config));
+        }
+
+        // Cargar configuración guardada
+        function cargarConfiguracion() {
+            const saved = localStorage.getItem('firebaseConfig');
+            if (saved) {
+                const config = JSON.parse(saved);
+                document.getElementById('apiKey').value = config.apiKey || '';
+                document.getElementById('authDomain').value = config.authDomain || '';
+                document.getElementById('databaseURL').value = config.databaseURL || '';
+                document.getElementById('projectId').value = config.projectId || '';
+                return config;
+            }
+            return null;
+        }
+
+        // Intentar conectar automáticamente al cargar
+        window.onload = function() {
+            const config = cargarConfiguracion();
+            if (config && config.apiKey) {
+                conectarFirebase(true);
+            }
+        };
+
+        function conectarFirebase(autoConnect = false) {
+            const config = {
+                apiKey: document.getElementById('apiKey').value,
+                authDomain: document.getElementById('authDomain').value,
+                databaseURL: document.getElementById('databaseURL').value,
+                projectId: document.getElementById('projectId').value
+            };
+
+            if (!config.apiKey || !config.databaseURL) {
+                if (!autoConnect) {
+                    alert('Por favor completa al menos API Key y Database URL');
+                }
+                return;
+            }
+
+            try {
+                // Inicializar Firebase
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(config);
+                }
+                
+                database = firebase.database();
+                repartosRef = database.ref('repartos');
+                
+                // Guardar configuración
+                guardarConfiguracion(config);
+                
+                // Escuchar cambios en tiempo real
+                repartosRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        repartos = Object.keys(data).map(key => ({
+                            id: key,
+                            ...data[key]
+                        }));
+                        // Ordenar por número
+                        repartos.sort((a, b) => a.numero - b.numero);
+                        
+                        // Actualizar próximo número
+                        if (repartos.length > 0) {
+                            numeroReparto = Math.max(...repartos.map(r => r.numero)) + 1;
+                        }
+                    } else {
+                        repartos = [];
+                        numeroReparto = 1;
+                    }
+                    actualizarTabla();
+                });
+
+                // Monitorear conexión
+                const connectedRef = database.ref('.info/connected');
+                connectedRef.on('value', (snap) => {
+                    isConnected = snap.val() === true;
+                    actualizarEstadoConexion();
+                });
+
+                // Mostrar app
+                document.getElementById('setupSection').classList.add('hidden');
+                document.getElementById('appContent').classList.remove('hidden');
+                
+                mostrarNotificacion('¡Conectado a Firebase! Los cambios se sincronizarán en tiempo real');
+                
+            } catch (error) {
+                console.error('Error al conectar:', error);
+                if (!autoConnect) {
+                    alert('Error al conectar con Firebase. Verifica tu configuración.');
+                }
+            }
+        }
+
+        function actualizarEstadoConexion() {
+            const statusEl = document.getElementById('connectionStatus');
+            const syncIndicator = document.getElementById('syncIndicator');
+            
+            if (isConnected) {
+                statusEl.textContent = 'Conectado - Sincronizando en tiempo real';
+                statusEl.className = 'connection-status connected';
+                syncIndicator.classList.remove('hidden');
+            } else {
+                statusEl.textContent = 'Sin conexión - Reconectando...';
+                statusEl.className = 'connection-status disconnected';
+                syncIndicator.classList.add('hidden');
+            }
+        }
+
+        document.getElementById('repartoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (!database) {
+                alert('No hay conexión con la base de datos');
+                return;
+            }
+            
+            const reparto = {
+                numero: numeroReparto,
+                destino: document.getElementById('destino').value,
+                direccion: document.getElementById('direccion').value,
+                horarios: document.getElementById('horarios').value,
+                bultos: parseInt(document.getElementById('bultos').value),
+                fecha: new Date().toISOString(),
+                dispositivo: navigator.userAgent.substring(0, 50) // Info del dispositivo
+            };
+            
+            // Guardar en Firebase
+            repartosRef.push(reparto).then(() => {
+                mostrarNotificacion('Reparto agregado y sincronizado');
+                this.reset();
+                document.getElementById('destino').focus();
+            }).catch(error => {
+                console.error('Error al guardar:', error);
+                alert('Error al guardar el reparto');
+            });
+        });
+
+        function actualizarTabla() {
+            const tbody = document.getElementById('repartosBody');
+            
+            if (repartos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay repartos cargados aún</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = repartos.map(reparto => `
+                <tr class="fade-in">
+                    <td>${reparto.numero}</td>
+                    <td>${reparto.destino}</td>
+                    <td>${reparto.direccion}</td>
+                    <td>${reparto.horarios}</td>
+                    <td>${reparto.bultos}</td>
+                </tr>
+            `).join('');
+        }
+
+        function exportarExcel() {
+            if (repartos.length === 0) {
+                alert('No hay repartos para exportar');
+                return;
+            }
+            
+            // Crear libro de Excel
+            const ws = XLSX.utils.json_to_sheet(repartos.map(r => ({
+                'N°': r.numero,
+                'Destino': r.destino,
+                'Dirección': r.direccion,
+                'Horarios de Entrega': r.horarios,
+                'Cantidad de Bultos': r.bultos
+            })));
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Repartos");
+            
+            // Descargar archivo
+            const fecha = new Date().toLocaleDateString('es-ES').replace(/\//g, '-');
+            XLSX.writeFile(wb, `repartos_${fecha}.xlsx`);
+            
+            mostrarNotificacion('Excel exportado correctamente');
+        }
+
+        function vaciarRepartos() {
+            if (!database) {
+                alert('No hay conexión con la base de datos');
+                return;
+            }
+            
+            if (repartos.length === 0) {
+                alert('No hay repartos para vaciar');
+                return;
+            }
+            
+            if (confirm('¿Estás seguro de que deseas vaciar TODOS los repartos? Esto afectará a todos los dispositivos conectados.')) {
+                repartosRef.remove().then(() => {
+                    numeroReparto = 1;
+                    mostrarNotificacion('Todos los repartos han sido eliminados');
+                }).catch(error => {
+                    console.error('Error al vaciar:', error);
+                    alert('Error al vaciar los repartos');
+                });
+            }
+        }
+
+        function mostrarNotificacion(mensaje) {
+            const notif = document.createElement('div');
+            notif.textContent = mensaje;
+            notif.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 8px;
+                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+                z-index: 1000;
+                animation: slideIn 0.5s ease;
+            `;
+            
+            document.body.appendChild(notif);
+            
+            setTimeout(() => {
+                notif.style.animation = 'slideOut 0.5s ease';
+                setTimeout(() => notif.remove(), 500);
+            }, 3000);
+        }
+
+        // Animaciones CSS adicionales
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            
+            @keyframes slideOut {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
